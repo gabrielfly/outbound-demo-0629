@@ -1,0 +1,105 @@
+plugins {
+    id 'org.springframework.boot' version '2.7.1'
+    id 'io.spring.dependency-management' version '1.0.11.RELEASE'
+    id 'java'
+
+}
+
+group = 'com.example'
+version = '0.0.1-SNAPSHOT'
+sourceCompatibility = '17'
+
+repositories {
+    mavenCentral()
+}
+
+//添加配置，定义了mybatisGenerator,可以想象成一个常量，供后边引入的依赖做“mybatisGenerator"修饰使用。
+configurations {
+    mybatisGenerator
+}
+
+dependencies {
+
+
+    implementation 'org.springframework.boot:spring-boot-starter'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+
+    implementation 'org.freeswitch.esl.client:org.freeswitch.esl.client:0.9.2'
+
+    implementation 'io.netty:netty:3.10.6.Final'
+
+    implementation 'org.slf4j:slf4j-api:1.7.36'
+
+    implementation 'org.mybatis:mybatis:3.5.10'
+
+    implementation 'org.springframework:spring-jdbc:5.3.21'
+
+
+    // 导入mybatisGenerator需要的依赖，下面三个“mybatisGenerator"开头的三个依赖与上边的依赖的区别，是专门为了mybatisGenerator提供服务的
+    // 使用完后是可以删掉的。”mybatisGenerator“开头的写法，是前边配置中添加的名称。
+    mybatisGenerator 'mysql:mysql-connector-java:8.0.29'
+
+    mybatisGenerator 'org.mybatis.generator:mybatis-generator-core:1.4.1'
+
+    mybatisGenerator 'tk.mybatis:mapper-core:4.2.1'
+
+
+}
+
+//def 宏定义，定义了一个getDbProperties方法，供下边使用。把指定的配置文件，存入properties中。
+def getDbProperties = {
+    def properties = new Properties()
+    file("src/main/resources/resource/mybatisConfig.properties").withInputStream { inputStream ->
+        properties.load(inputStream)
+    }
+    properties
+}
+
+//建立一个任务。（在Gradle Task--》Other中体现）
+task mybatisGenerate {
+    //取出属性，然后赋值给 generatorConfig.xml 文件中的属性。
+    def properties = getDbProperties()
+    ant.properties['targetProject'] = projectDir.path
+    ant.properties['driverClass'] = properties.getProperty("jdbc.driver")
+    ant.properties['connectionURL'] = properties.getProperty("jdbc.url")
+    ant.properties['userId'] = properties.getProperty("jdbc.username")
+    ant.properties['password'] = properties.getProperty("jdbc.password")
+    ant.properties['src_main_java'] = sourceSets.main.java.srcDirs[0].path
+    ant.properties['src_main_resources'] = sourceSets.main.resources.srcDirs[0].path
+    ant.properties['modelPackage'] = properties.getProperty("package.model")
+    ant.properties['mapperPackage'] = properties.getProperty("package.mapper")
+    ant.properties['sqlMapperPackage'] = properties.getProperty("package.xml")
+
+    //蚂蚁的工具，gradle不支持mybatisGenertor，借用了ant的任务
+    ant.taskdef(
+            name: 'mbgenerator',
+            classname: 'org.mybatis.generator.ant.GeneratorAntTask',
+            classpath: configurations.mybatisGenerator.asPath
+    )
+    //蚂蚁的产生器，取读配置文件generatorConfig.xml(定义了三个依赖包的sql、dao、pojo、对哪些表进行产生及样式、注释等）
+    ant.mbgenerator(overwrite: true,
+            configfile: 'src/main/resources/generatorConfig.xml', verbose: true) {
+        //属性的定义。
+        propertyset {
+            propertyref(name: 'targetProject')
+            propertyref(name: 'userId')
+            propertyref(name: 'driverClass')
+            propertyref(name: 'connectionURL')
+            propertyref(name: 'password')
+            propertyref(name: 'src_main_java')
+            propertyref(name: 'src_main_resources')
+            propertyref(name: 'modelPackage')
+            propertyref(name: 'mapperPackage')
+            propertyref(name: 'sqlMapperPackage')
+        }
+    }
+}
+
+
+
+
+
+
+
+
